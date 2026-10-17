@@ -1,0 +1,11 @@
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# 本地环境变量（有密钥，绝对不能上传）
+.env
+
+# 新闻去重记录（运行时生成）
+last_news.txt
