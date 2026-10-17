@@ -17,6 +17,7 @@ NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_
 REQUEST_TIMEOUT = 10
 
 # ========== RSS 源与分类定义 ==========
+# 我把你要求的来源添加进来了：人民网、澎湃（第三方 RSS）以及本地聚合源（通过 RSSHub）
 CATEGORY_DEFS = [
     {
         "key": "military",
@@ -24,8 +25,12 @@ CATEGORY_DEFS = [
         "feeds": [
             "http://www.chinanews.com.cn/rss/mil.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
+            # 人民网军事频道
+            "http://www.people.com.cn/rss/military.xml",
+            # 澎湃（第三方聚合）
+            "https://rsshub.app/thepaper/featured",
         ],
-        "keywords": ["导弹", "无人机", "拦截", "战机", "航母", "��演", "海军", "空军", "核"],
+        "keywords": ["导弹", "无人机", "拦截", "战机", "航母", "军演", "海军", "空军", "核"],
         "min_items": 20,
     },
     {
@@ -34,6 +39,10 @@ CATEGORY_DEFS = [
         "feeds": [
             "http://www.chinanews.com.cn/rss/finance.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
+            # 人民网财经/要闻（可提供更多宏观/能源类报道）
+            "http://www.people.com.cn/rss/ywkx.xml",
+            # 澎湃聚合（能源/财经相关也会出现在这里）
+            "https://rsshub.app/thepaper/featured",
         ],
         "keywords": ["石油", "油价", "原油", "布伦特", "成品油", "天然气", "油轮", "能源", "OPEC"],
         "min_items": 20,
@@ -45,6 +54,11 @@ CATEGORY_DEFS = [
             "http://www.chinanews.com.cn/rss/world.xml",
             "http://rss.cnn.com/rss/edition_world.rss",
             "http://feeds.bbci.co.uk/news/world/rss.xml",
+            # 人民网国际/时政
+            "http://www.people.com.cn/rss/world.xml",
+            "http://www.people.com.cn/rss/politics.xml",
+            # 澎湃（第三方聚合）
+            "https://rsshub.app/thepaper/featured",
         ],
         "keywords": ["联合国", "峰会", "制裁", "外交", "协议", "冲突", "战略", "总统", "政府", "战争"],
         "min_items": 20,
@@ -56,6 +70,14 @@ CATEGORY_DEFS = [
             "http://www.chinanews.com.cn/rss/local.xml",
             "http://www.chinanews.com.cn/rss/finance.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
+            # 人民网要闻/社会（覆盖更多全国性与地方性报道）
+            "http://www.people.com.cn/rss/ywkx.xml",
+            "http://www.people.com.cn/rss/society.xml",
+            # 澎湃（第三方聚合）
+            "https://rsshub.app/thepaper/featured",
+            # 本地聚合（通过 RSSHub）：网易、新浪的辽宁频道（第三方）
+            "https://rsshub.app/netease/news/liaoning",
+            "https://rsshub.app/sina/rollnews/liaoning",
         ],
         "keywords": ["辽宁", "鞍山", "沈阳", "抚顺", "本溪", "营口", "丹东", "锦州", "大连", "民生", "房价", "物价"],
         "min_items": 20,
@@ -87,7 +109,7 @@ def _safe_json_from_resp(resp):
 
 
 def _normalize_section(body, section_name):
-    # 兼容旧实现的接口结构（保留以备将来可能使用 API_HOST）
+    # 兼容旧实现的接口结构（保留以备将来可��使用 API_HOST）
     if not isinstance(body, dict):
         return {}
     if section_name in body and isinstance(body[section_name], (dict, list)):
@@ -218,7 +240,7 @@ def econ_block():
             lines.append(f"· {k}：{v}")
         lines.append("注：指标为页面抓取结果，可能需手动核验来源与口径。")
     else:
-        lines.append("（未抓取到显著的经济指标；可通过设置环境变量 LN_ECON_URL 指向统计/政府发布页来改进）")
+        lines.append("（未抓取到显著的经济指���；可通过设置环境变量 LN_ECON_URL 指向统计/政府发布页来改进）")
 
     return format_feishu_post("辽宁经济与物价", "\n".join(lines))
 
