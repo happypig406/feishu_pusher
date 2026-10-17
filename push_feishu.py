@@ -9,9 +9,9 @@ import requests
 
 # ========== 读取 Secrets（不用 dotenv，直接读 GitHub Actions 注入的环境变量） ==========
 WEBHOOK = os.getenv("FEISHU_WEBHOOK")
-QW_KEY = os.getenv("QWEATHER_KEY")
+QW_KEY = os.getenv("QWEATHER_KEY")  # 保留以兼容旧配置，但已不再使用
 API_HOST = os.getenv("API_HOST")
-LOCATION = os.getenv("LOCATION", "122.99,41.11")
+LOCATION = os.getenv("LOCATION", "122.99,41.11")  # 已不再使用
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 REQUEST_TIMEOUT = 10
@@ -25,7 +25,7 @@ CATEGORY_DEFS = [
             "http://www.chinanews.com.cn/rss/mil.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
         ],
-        "keywords": ["导弹", "无人机", "拦截", "战机", "航母", "军演", "海军", "空军", "核"],
+        "keywords": ["导弹", "无人机", "拦截", "战机", "航母", "��演", "海军", "空军", "核"],
         "min_items": 20,
     },
     {
@@ -63,11 +63,13 @@ CATEGORY_DEFS = [
 ]
 
 LN_PRICE_URL = "https://fgw.ln.gov.cn/fgw/xxgk/jgjc/mrjg/index.shtml"
-PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
-              "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
-
+PRICE_WANT = [
+    "鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
+    "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"
+]
 
 # ========== 通用工具 ==========
+
 def normalize_api_base():
     if not API_HOST:
         raise RuntimeError("API_HOST 是空，检查 Secrets 或 YAML env 注入")
@@ -85,13 +87,11 @@ def _safe_json_from_resp(resp):
 
 
 def _normalize_section(body, section_name):
-    # body may be wrapper like {'code':0, 'now': {...}} or the payload itself
+    # 兼容旧实现的接口结构（保留以备将来可能使用 API_HOST）
     if not isinstance(body, dict):
         return {}
     if section_name in body and isinstance(body[section_name], (dict, list)):
         return body[section_name]
-    # sometimes the API returns the section directly
-    # e.g., body contains keys like 'temp', 'text'
     if section_name == 'now':
         if any(k in body for k in ('temp', 'text', 'feelsLike')):
             return body
@@ -100,114 +100,6 @@ def _normalize_section(body, section_name):
     if section_name == 'daily' and isinstance(body, dict) and 'daily' in body:
         return body.get('daily')
     return {}
-
-
-# ========== 天气（兼容 header/key 两种认证方式，并在失败时打印调试信息） ==========
-def fetch():
-    if not QW_KEY:
-        raise RuntimeError("QWEATHER_KEY 是空")
-
-    base = normalize_api_base()
-    session = requests.Session()
-
-    # helper to try a GET and return JSON (or None)
-    def try_get(url, params=None, headers=None):
-        try:
-            resp = session.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
-            txt = resp.text[:1000]
-            j = _safe_json_from_resp(resp)
-            return j, txt, resp.status_code
-        except Exception as e:
-            return None, str(e), None
-
-    now_json = hourly_json = daily_json = None
-
-    # 1) 尝试用 header 方式（原来实现）
-    headers = {"X-QW-Api-Key": QW_KEY}
-    now_j, now_txt, now_code = try_get(f"{base}/v7/weather/now", params={"location": LOCATION}, headers=headers)
-    hourly_j, hourly_txt, hourly_code = try_get(f"{base}/v7/weather/24h", params={"location": LOCATION}, headers=headers)
-    daily_j, daily_txt, daily_code = try_get(f"{base}/v7/weather/3d", params={"location": LOCATION}, headers=headers)
-
-    # If header mode didn't return useful payloads, 尝试用 key 作为 query 参数（很多 qweather 示例使用 key 参数）
-    def useful(j):
-        if not isinstance(j, dict):
-            return False
-        # contains expected keys
-        if 'now' in j or 'temp' in j or 'code' in j:
-            return True
-        return False
-
-    if not (useful(now_j) or useful(hourly_j) or useful(daily_j)):
-        # Fallback: use key in params
-        now_j2, now_txt2, now_code2 = try_get(f"{base}/v7/weather/now", params={"location": LOCATION, "key": QW_KEY})
-        hourly_j2, hourly_txt2, hourly_code2 = try_get(f"{base}/v7/weather/24h", params={"location": LOCATION, "key": QW_KEY})
-        daily_j2, daily_txt2, daily_code2 = try_get(f"{base}/v7/weather/3d", params={"location": LOCATION, "key": QW_KEY})
-        # prefer ones that returned JSON
-        now_j = now_j2 or now_j
-        hourly_j = hourly_j2 or hourly_j
-        daily_j = daily_j2 or daily_j
-
-        # If still not useful, print short debug to logs so we can inspect
-        if not (useful(now_j) or useful(hourly_j) or useful(daily_j)):
-            print("天气接口返回内容不符合预期，下面是各接口的简短响应（最多1000字符）:")
-            print("now status:", now_code, "text:", now_txt)
-            print("hourly status:", hourly_code, "text:", hourly_txt)
-            print("daily status:", daily_code, "text:", daily_txt)
-
-    # Normalize sections to expected shapes
-    now_sec = _normalize_section(now_j or {}, 'now')
-    hourly_sec = _normalize_section(hourly_j or {}, 'hourly')
-    daily_sec = _normalize_section(daily_j or {}, 'daily')
-
-    # For compatibility with build_text which expects structures like {"now": {...}} and {"hourly": {...}}, return dict
-    return {"now": {"now": now_sec}, "hourly": {"hourly": hourly_sec if isinstance(hourly_sec, list) else hourly_sec}, "daily": {"daily": daily_sec if isinstance(daily_sec, list) else daily_sec}}
-
-
-def build_text(data):
-    now = {}
-    try:
-        now = data.get("now", {}).get("now", {})
-    except Exception:
-        now = {}
-    lines = ["监控推送 · 鞍山天气"]
-    lines.append(
-        f"当前：{now.get('text', '?')} {now.get('temp', '?')}℃ (体感 {now.get('feelsLike', '?')}℃)"
-    )
-    lines.append(
-        f"湿度 {now.get('humidity', '?')}%  {now.get('windDir', '')}{now.get('windScale', '?')}级"
-    )
-    lines.append("")
-    lines.append("—— 未来24小时 ——")
-    hourly = data.get("hourly", {}).get("hourly", []) or []
-    # hourly may be dict with 'fxTime' keys in subitems or another structure. Try to iterate safely.
-    if isinstance(hourly, dict):
-        hourly_list = hourly.get('hourly', []) if 'hourly' in hourly else []
-    else:
-        hourly_list = hourly
-    for i, h in enumerate(hourly_list):
-        try:
-            if i % 3 != 0:
-                continue
-            fx_time = (h.get("fxTime") or "") if isinstance(h, dict) else ""
-            t = fx_time[11:16] if len(fx_time) >= 16 else (h.get('time', '?') if isinstance(h, dict) else '?')
-            lines.append(f"{t} {h.get('text', '?')} {h.get('temp', '?')}℃ 降水{h.get('pop', '0')}%")
-        except Exception:
-            continue
-    lines.append("")
-    lines.append("—— 未来3天 ——")
-    daily = data.get("daily", {}).get("daily", []) or []
-    if isinstance(daily, dict):
-        daily_list = daily.get('daily', []) if 'daily' in daily else []
-    else:
-        daily_list = daily
-    for d in daily_list[:3]:
-        try:
-            lines.append(
-                f"{d.get('fxDate', '?')} {d.get('textDay', '?')} {d.get('tempMin', '?')}~{d.get('tempMax', '?')}℃"
-            )
-        except Exception:
-            continue
-    return "\n".join(lines)
 
 
 # ========== 辽宁物价 ==========
@@ -255,6 +147,80 @@ def price_block():
         lines.append(f"· {x}")
     lines.append("数据：辽宁省发改委")
     return format_feishu_post("辽宁物价", "\n".join(lines))
+
+
+# ========== 辽宁经济（尝试抓取若干关键指标，基于环境变量 LN_ECON_URL 可配置） ==========
+LN_ECON_URL = os.getenv("LN_ECON_URL", "http://tjj.ln.gov.cn/")
+
+
+def fetch_ln_economy():
+    """尝试抓取并解析辽宁统计或政府网站上的若干经济指标（启发式），返回键值对列表。
+    该函数尽量容错：若未设置或抓取失败，会返回空列表。
+    """
+    try:
+        r = requests.get(LN_ECON_URL, timeout=REQUEST_TIMEOUT, headers={"User-Agent": "Mozilla/5.0"})
+        r.raise_for_status()
+        r.encoding = r.apparent_encoding or "utf-8"
+        text = re.sub(r"<.*?>", " ", r.text)
+        text = re.sub(r"\s+", " ", text)
+    except Exception as e:
+        print("经济页拉取失败:", e)
+        return []
+
+    indicators = []
+
+    patterns = [
+        ("地区生产总值(GDP)", r"(地区生产总值|GDP)[：:\s]*([\d,.]+\s*(?:亿元|万亿元|万元|万|亿)?)"),
+        ("CPI(居民消费价格指数)", r"(CPI|居民消费价格指数)[：:\s]*([\d.]+%)"),
+        ("社会消费品零售总额", r"(社会消费品零售总额)[：:\s]*([\d,.]+\s*(?:亿元|万元|万)?)"),
+        ("固定资产投资", r"(固定资产投资)[：:\s]*([\d,.]+\s*(?:亿元|万元|万)?)"),
+        ("进出口总额", r"(进出口总额|进出口额)[：:\s]*([\d,.]+\s*(?:亿美元|亿元|万元)?)"),
+    ]
+
+    for label, pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            # 取最后一个捕获组作为值（数值+单位）
+            val = m.group(len(m.groups()))
+            indicators.append((label, val.strip()))
+
+    # 如果未找到，也尝试抓取类似“同比”数据（例如：GDP同比+X%）
+    if not indicators:
+        for key in ["GDP", "同比", "增长"]:
+            m = re.search(r"(GDP|地区生产总值).{0,30}([+-]?\d+\.\d+%|\d+%|增长\d+\.\d+%)", text)
+            if m:
+                indicators.append(("GDP同比/增长", m.group(2).strip()))
+                break
+
+    return indicators
+
+
+def econ_block():
+    # 合并物价与经济指标为一条推送
+    price_rows, mtime = fetch_ln_prices()
+    econ_items = fetch_ln_economy()
+
+    lines = ["—— 辽宁经济与物价速览 ——"]
+    if mtime:
+        lines.append(f"物价监测时间：{mtime}")
+
+    if price_rows:
+        lines.append("\n*物价（全省均价）*")
+        for p in price_rows:
+            lines.append(f"· {p}")
+        lines.append("来源：辽宁省发改委")
+    else:
+        lines.append("（物价数据暂未获取到）")
+
+    if econ_items:
+        lines.append("\n*经济指标（启发式抓取）*")
+        for k, v in econ_items:
+            lines.append(f"· {k}：{v}")
+        lines.append("注：指标为页面抓取结果，可能需手动核验来源与口径。")
+    else:
+        lines.append("（未抓取到显著的经济指标；可通过设置环境变量 LN_ECON_URL 指向统计/政府发布页来改进）")
+
+    return format_feishu_post("辽宁经济与物价", "\n".join(lines))
 
 
 # ========== 新闻抓取：按分类聚合、评分与去重 ==========
@@ -414,7 +380,7 @@ def push_feishu(text):
     raise RuntimeError("飞书推送失败（重试3次）")
 
 
-# ========== Main：分3条推送 ==========
+# ========== Main：分2条推送（新闻 + 辽宁经济/物价） ==========
 def main():
     def safe_send(label, sender):
         try:
@@ -431,16 +397,12 @@ def main():
                 except Exception:
                     pass
 
-    # 第1条：天气
-    safe_send("第1条（天气）", lambda: format_feishu_post("监控推送 · 鞍山天气", build_text(fetch())))
+    # 第1条：新闻（按分类）
+    safe_send("第1条（新闻）", news_block)
     time.sleep(2)
 
-    # 第2条：新闻（按分类）
-    safe_send("第2条（新闻）", news_block)
-    time.sleep(2)
-
-    # 第3条：物价
-    safe_send("第3条（物价）", price_block)
+    # 第2条：辽宁物价与经济
+    safe_send("第2条（辽宁物价与经济）", econ_block)
 
     print("✅ 全部完成")
 
