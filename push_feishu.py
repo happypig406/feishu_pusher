@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 import os
 import re
-import time
 import requests
 import feedparser
-from dotenv import load_dotenv
-
-load_dotenv()
 
 WEBHOOK = os.getenv("FEISHU_WEBHOOK")
 QW_KEY = os.getenv("QWEATHER_KEY")
