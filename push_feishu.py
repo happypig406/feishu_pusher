@@ -5,11 +5,11 @@ import time
 import requests
 import feedparser
 
-# ========== 读取 Secrets ==========
+# 直接读取 GitHub Actions 注入的 Secrets 环境变量
 WEBHOOK = os.getenv("FEISHU_WEBHOOK")
 QW_KEY = os.getenv("QWEATHER_KEY")
 API_HOST = os.getenv("API_HOST")
-LOCATION = "122.99,41.11"
+LOCATION = "122.99,41.11"  # 鞍山经纬度
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 
@@ -23,8 +23,9 @@ RSS_SOURCES = [
 LN_PRICE_URL = "https://fgw.ln.gov.cn/fgw/xxgk/jgjc/mrjg/index.shtml"
 PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油", "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
 
-# ========== 天气（真实接口） ==========
+# ========== 天气（修复认证） ==========
 def fetch():
+    # 和风天气 API KEY 认证方式：放在请求头 X-QW-Api-Key 中 [3](@ref)
     headers = {"X-QW-Api-Key": QW_KEY}
     now = requests.get(f"{API_HOST}/v7/weather/now", params={"location": LOCATION}, headers=headers, timeout=10).json()
     hourly = requests.get(f"{API_HOST}/v7/weather/24h", params={"location": LOCATION}, headers=headers, timeout=10).json()
@@ -131,7 +132,7 @@ def news_block():
     open(NEWS_LAST_FILE, "w", encoding="utf-8").write(key)
     return "\n".join(lines)
 
-# ========== 飞书推送（加重试频控） ==========
+# ========== 飞书推送（加重试） ==========
 def push_feishu(text):
     if not WEBHOOK: raise RuntimeError("FEISHU_WEBHOOK 没配置")
     for attempt in range(3):
@@ -140,7 +141,7 @@ def push_feishu(text):
             body = resp.json()
             code = body.get("code", 0)
             if code == 0:
-                print("✅ 飞书真实发送成功")
+                print("✅ 飞书发送成功")
                 return
             print(f"飞书返回 code={code} msg={body.get('msg')}")
             if code in (11232, 9499):
@@ -156,10 +157,14 @@ def push_feishu(text):
 def main():
     # 第1条：天气
     try:
-        push_feishu(build_text(fetch()))
+        data = fetch()
+        push_feishu(build_text(data))
         print("✅ 第1条（天气）完成")
     except Exception as e: 
-        print(f"❌ 第1条失败: {e}")
+        print(f"❌ 第1条（天气）失败: {e}")
+        try: push_feishu(f"⚠️ 天气推送失败报警：{e}")
+        except: pass
+        
     time.sleep(2)
 
     # 第2条：新闻
@@ -167,7 +172,8 @@ def main():
         push_feishu(news_block())
         print("✅ 第2条（新闻）完成")
     except Exception as e: 
-        print(f"❌ 第2条失败: {e}")
+        print(f"❌ 第2条（新闻）失败: {e}")
+        
     time.sleep(2)
 
     # 第3条：物价
@@ -175,7 +181,8 @@ def main():
         push_feishu(price_block())
         print("✅ 第3条（物价）完成")
     except Exception as e: 
-        print(f"❌ 第3条失败: {e}")
+        print(f"❌ 第3条（物价）失败: {e}")
+        
     print("✅ 全部完成")
 
 if __name__ == "__main__":
