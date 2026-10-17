@@ -77,56 +77,98 @@ def normalize_api_base():
     return f"https://{host}"
 
 
-def safe_get_json(session, url, params=None, headers=None):
-    response = session.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
+def _safe_json_from_resp(resp):
     try:
-        body = response.json()
-    except ValueError:
-        raise RuntimeError(f"{url} 返回非 JSON：{response.text[:200]}")
-
-    if isinstance(body, dict):
-        code = body.get("code")
-        if code not in (None, 0):
-            raise RuntimeError(f"{url} 返回失败：code={code} msg={body.get('msg')} detail={body.get('detail')}")
-    return body
+        return resp.json()
+    except Exception:
+        return None
 
 
-def format_feishu_post(title, body_text):
-    body_text = str(body_text or "")
-    if not body_text:
-        body_text = "(暂无内容)"
-    return {
-        "msg_type": "post",
-        "content": {
-            "post": {
-                "zh_cn": {
-                    "title": title,
-                    "content": [
-                        [{"tag": "text", "text": body_text}]
-                    ],
-                }
-            }
-        },
-    }
+def _normalize_section(body, section_name):
+    # body may be wrapper like {'code':0, 'now': {...}} or the payload itself
+    if not isinstance(body, dict):
+        return {}
+    if section_name in body and isinstance(body[section_name], (dict, list)):
+        return body[section_name]
+    # sometimes the API returns the section directly
+    # e.g., body contains keys like 'temp', 'text'
+    if section_name == 'now':
+        if any(k in body for k in ('temp', 'text', 'feelsLike')):
+            return body
+    if section_name == 'hourly' and isinstance(body, dict) and 'hourly' in body:
+        return body.get('hourly')
+    if section_name == 'daily' and isinstance(body, dict) and 'daily' in body:
+        return body.get('daily')
+    return {}
 
 
-# ========== 天气（修复URL拼接，适配你带 https:// 的 Secret） ==========
+# ========== 天气（兼容 header/key 两种认证方式，并在失败时打印调试信息） ==========
 def fetch():
     if not QW_KEY:
         raise RuntimeError("QWEATHER_KEY 是空")
 
     base = normalize_api_base()
-    headers = {"X-QW-Api-Key": QW_KEY}
     session = requests.Session()
 
-    now = safe_get_json(session, f"{base}/v7/weather/now", {"location": LOCATION}, headers)
-    hourly = safe_get_json(session, f"{base}/v7/weather/24h", {"location": LOCATION}, headers)
-    daily = safe_get_json(session, f"{base}/v7/weather/3d", {"location": LOCATION}, headers)
-    return {"now": now, "hourly": hourly, "daily": daily}
+    # helper to try a GET and return JSON (or None)
+    def try_get(url, params=None, headers=None):
+        try:
+            resp = session.get(url, params=params, headers=headers, timeout=REQUEST_TIMEOUT)
+            txt = resp.text[:1000]
+            j = _safe_json_from_resp(resp)
+            return j, txt, resp.status_code
+        except Exception as e:
+            return None, str(e), None
+
+    now_json = hourly_json = daily_json = None
+
+    # 1) 尝试用 header 方式（原来实现）
+    headers = {"X-QW-Api-Key": QW_KEY}
+    now_j, now_txt, now_code = try_get(f"{base}/v7/weather/now", params={"location": LOCATION}, headers=headers)
+    hourly_j, hourly_txt, hourly_code = try_get(f"{base}/v7/weather/24h", params={"location": LOCATION}, headers=headers)
+    daily_j, daily_txt, daily_code = try_get(f"{base}/v7/weather/3d", params={"location": LOCATION}, headers=headers)
+
+    # If header mode didn't return useful payloads, 尝试用 key 作为 query 参数（很多 qweather 示例使用 key 参数）
+    def useful(j):
+        if not isinstance(j, dict):
+            return False
+        # contains expected keys
+        if 'now' in j or 'temp' in j or 'code' in j:
+            return True
+        return False
+
+    if not (useful(now_j) or useful(hourly_j) or useful(daily_j)):
+        # Fallback: use key in params
+        now_j2, now_txt2, now_code2 = try_get(f"{base}/v7/weather/now", params={"location": LOCATION, "key": QW_KEY})
+        hourly_j2, hourly_txt2, hourly_code2 = try_get(f"{base}/v7/weather/24h", params={"location": LOCATION, "key": QW_KEY})
+        daily_j2, daily_txt2, daily_code2 = try_get(f"{base}/v7/weather/3d", params={"location": LOCATION, "key": QW_KEY})
+        # prefer ones that returned JSON
+        now_j = now_j2 or now_j
+        hourly_j = hourly_j2 or hourly_j
+        daily_j = daily_j2 or daily_j
+
+        # If still not useful, print short debug to logs so we can inspect
+        if not (useful(now_j) or useful(hourly_j) or useful(daily_j)):
+            print("天气接口返回内容不符合预期，下面是各接口的简短响应（最多1000字符）:")
+            print("now status:", now_code, "text:", now_txt)
+            print("hourly status:", hourly_code, "text:", hourly_txt)
+            print("daily status:", daily_code, "text:", daily_txt)
+
+    # Normalize sections to expected shapes
+    now_sec = _normalize_section(now_j or {}, 'now')
+    hourly_sec = _normalize_section(hourly_j or {}, 'hourly')
+    daily_sec = _normalize_section(daily_j or {}, 'daily')
+
+    # For compatibility with build_text which expects structures like {"now": {...}} and {"hourly": {...}}, return dict
+    return {"now": {"now": now_sec}, "hourly": {"hourly": hourly_sec if isinstance(hourly_sec, list) else hourly_sec}, "daily": {"daily": daily_sec if isinstance(daily_sec, list) else daily_sec}}
 
 
 def build_text(data):
-    now = data.get("now", {}).get("now", {})
+    now = {}
+    try:
+        now = data.get("now", {}).get("now", {})
+    except Exception:
+        now = {}
     lines = ["监控推送 · 鞍山天气"]
     lines.append(
         f"当前：{now.get('text', '?')} {now.get('temp', '?')}℃ (体感 {now.get('feelsLike', '?')}℃)"
@@ -136,19 +178,35 @@ def build_text(data):
     )
     lines.append("")
     lines.append("—— 未来24小时 ——")
-    hourly = data.get("hourly", {}).get("hourly", [])
-    for i, h in enumerate(hourly):
-        if i % 3 != 0:
+    hourly = data.get("hourly", {}).get("hourly", []) or []
+    # hourly may be dict with 'fxTime' keys in subitems or another structure. Try to iterate safely.
+    if isinstance(hourly, dict):
+        hourly_list = hourly.get('hourly', []) if 'hourly' in hourly else []
+    else:
+        hourly_list = hourly
+    for i, h in enumerate(hourly_list):
+        try:
+            if i % 3 != 0:
+                continue
+            fx_time = (h.get("fxTime") or "") if isinstance(h, dict) else ""
+            t = fx_time[11:16] if len(fx_time) >= 16 else (h.get('time', '?') if isinstance(h, dict) else '?')
+            lines.append(f"{t} {h.get('text', '?')} {h.get('temp', '?')}℃ 降水{h.get('pop', '0')}%")
+        except Exception:
             continue
-        fx_time = (h.get("fxTime") or "")
-        t = fx_time[11:16] if len(fx_time) >= 16 else "?"
-        lines.append(f"{t} {h.get('text', '?')} {h.get('temp', '?')}℃ 降水{h.get('pop', '0')}%")
     lines.append("")
     lines.append("—— 未来3天 ——")
-    for d in data.get("daily", {}).get("daily", [])[:3]:
-        lines.append(
-            f"{d.get('fxDate', '?')} {d.get('textDay', '?')} {d.get('tempMin', '?')}~{d.get('tempMax', '?')}℃"
-        )
+    daily = data.get("daily", {}).get("daily", []) or []
+    if isinstance(daily, dict):
+        daily_list = daily.get('daily', []) if 'daily' in daily else []
+    else:
+        daily_list = daily
+    for d in daily_list[:3]:
+        try:
+            lines.append(
+                f"{d.get('fxDate', '?')} {d.get('textDay', '?')} {d.get('tempMin', '?')}~{d.get('tempMax', '?')}℃"
+            )
+        except Exception:
+            continue
     return "\n".join(lines)
 
 
@@ -293,6 +351,25 @@ def news_block():
 
 
 # ========== 飞书推送（加重试+频控） ==========
+def format_feishu_post(title, body_text):
+    body_text = str(body_text or "")
+    if not body_text:
+        body_text = "(暂无内容)"
+    return {
+        "msg_type": "post",
+        "content": {
+            "post": {
+                "zh_cn": {
+                    "title": title,
+                    "content": [
+                        [{"tag": "text", "text": body_text}]
+                    ],
+                }
+            }
+        },
+    }
+
+
 def push_feishu(text):
     if not WEBHOOK:
         raise RuntimeError("FEISHU_WEBHOOK 没配置")
