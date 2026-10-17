@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+import time
 import requests
 import feedparser
 from dotenv import load_dotenv
@@ -15,10 +16,6 @@ LOCATION = "122.99,41.11"
 
 LN_PRICE_URL = "https://fgw.ln.gov.cn/fgw/xxgk/jgjc/mrjg/index.shtml"
 
-# ========== 板块配置 ==========
-# hard：必须含其中一个才算该类（防日本地震/非遗混入台海）
-# kw ：用于权重打分，命中高分词排前面
-# srcs：该板块抓取的源
 BLOCKS = [
     {
         "name": "军事",
@@ -65,7 +62,6 @@ PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
               "大米", "面粉", "大白菜", "黄瓜", "土豆", "西红柿",
               "青椒", "芸豆", "韭菜", "菠菜", "芹菜"]
 
-# 关键词权重：大国/核心热点高分，排最前
 HOT_WEIGHT = {
     "习近平": 20, "王毅": 18, "外交部": 16,
     "特朗普": 20, "拜登": 18, "布林肯": 16, "白宫": 18,
@@ -87,7 +83,20 @@ HOT_WEIGHT = {
 }
 
 
-# ========== 天气 ==========
+def sanitize(msg):
+    msg = re.sub(r"https?://[^\s'\"]+", "<hidden>", msg)
+    msg = re.sub(r"[a-z0-9\-]+\.(qweatherapi\.com|chinanews\.com\.cn|ln\.gov\.cn)", "<hidden>", msg)
+    return msg
+
+
+def relevance(title, hard):
+    score = 0
+    for kw in hard:
+        if kw in title:
+            score += HOT_WEIGHT.get(kw, len(kw))
+    return score
+
+
 def fetch_weather():
     headers = {"X-QW-Api-Key": QW_KEY}
     base = API_HOST.rstrip("/")
@@ -126,7 +135,6 @@ def build_text(data):
     return "\n".join(lines)
 
 
-# ========== 物价 ==========
 def fetch_ln_prices():
     try:
         r = requests.get(LN_PRICE_URL, timeout=10,
@@ -164,92 +172,120 @@ def price_block():
     return "\n".join(lines)
 
 
-# ========== 脱敏 ==========
-def sanitize(msg):
-    msg = re.sub(r"https?://[^\s'\"]+", "<hidden>", msg)
-    msg = re.sub(r"[a-z0-9\-]+\.(qweatherapi\.com|chinanews\.com\.cn|ln\.gov\.cn)", "<hidden>", msg)
-    return msg
-
-
-def relevance(title, hard):
-    score = 0
-    for kw in hard:
-        if kw in title:
-            score += HOT_WEIGHT.get(kw, len(kw))
-    return score
-
-
-# ========== 单板块抓取（独立去重 + 宽兜底） ==========
 def fetch_block(cfg):
     picked = []
     seen = set()
     for url in cfg["srcs"]:
         try:
-            d = feedparser.parse(url)
-            cands = []
-            fill = []   # 兜底：不满足 hard 但也属本源的最新条目
-            for e in d.entries:
-                title = (e.get("title") or "").strip()
-                link = (e.get("link") or "").strip()
-                if not title or not link or title in seen:
-                    continue
-                seen.add(title)
-                hit = any(k in title for k in cfg["hard"])
-                score = relevance(title, cfg["hard"])
-                if hit:
-                    cands.append((score, title, link))
-                else:
-                    fill.append((title, link))
-            cands.sort(key=lambda x: -x[0])
-            for _, t, u in cands:
-                if len(picked) >= cfg["cap"]:
-                    break
-                picked.append((t, u))
-            # 不够 cap 时用兜底补满
-            for t, u in fill:
-                if len(picked) >= cfg["cap"]:
-                    break
-                picked.append((t, u))
+            r = requests.get(url, timeout=10,
+                             headers={"User-Agent": "Mozilla/5.0"})
+            d = feedparser.parse(r.text)
         except Exception as ex:
-            print(f"[{cfg['name']}] RSS失败: {sanitize(str(ex))}")
+            print(f"[{cfg['name']}] RSS拉取失败: {sanitize(str(ex))}")
+            continue
+
+        cands = []
+        fill = []
+        for e in d.entries:
+            title = (e.get("title") or "").strip()
+            link = (e.get("link") or "").strip()
+            if not title or not link or title in seen:
+                continue
+            seen.add(title)
+            hit = any(k in title for k in cfg["hard"])
+            score = relevance(title, cfg["hard"])
+            if hit:
+                cands.append((score, title, link))
+            else:
+                fill.append((title, link))
+
+        cands.sort(key=lambda x: -x[0])
+        for _, t, u in cands:
+            if len(picked) >= cfg["cap"]:
+                break
+            picked.append((t, u))
+        for t, u in fill:
+            if len(picked) >= cfg["cap"]:
+                break
+            picked.append((t, u))
     return picked
 
 
-# ========== 飞书 ==========
 def push_feishu(text):
     if not WEBHOOK:
-        raise RuntimeError("FEISHU_WEBHOOK 没配置")
-    resp = requests.post(WEBHOOK,
-                         json={"msg_type": "text", "content": {"text": text}},
-                         timeout=5)
-    print("飞书返回:", resp.json())
+        print("⚠️ FEISHU_WEBHOOK 未配置，跳过")
+        return
+    for attempt in range(3):
+        try:
+            resp = requests.post(WEBHOOK,
+                                 json={"msg_type": "text", "content": {"text": text}},
+                                 timeout=8)
+            try:
+                body = resp.json()
+            except Exception:
+                body = {}
+            code = body.get("code", 0)
+            if code == 0:
+                return
+            print(f"飞书返回 code={code} msg={body.get('msg')}")
+            if code in (11232, 9499):
+                time.sleep(2 * (attempt + 1))
+                continue
+            return
+        except Exception as e:
+            print(f"推送异常: {sanitize(str(e))}")
+            time.sleep(2)
+    print("❌ 该条消息发送失败（已重试3次）")
 
 
 def main():
+    # 第1条：天气
     try:
-        # 1) 天气单独一条
         push_feishu(build_text(fetch_weather()))
-
-        # 2) 五块各一条
-        for cfg in BLOCKS:
-            items = fetch_block(cfg)
-            lines = [f"—— {cfg['name']}资讯 ——"]
-            if not items:
-                lines.append("（暂无相关条目）")
-            for t, u in items:
-                lines.append(f"· {t}")
-                lines.append(f"  {u}")
-            push_feishu("\n".join(lines))
-
-        # 3) 物价单独一条
-        push_feishu(price_block())
-        print("✅ 完成")
+        print("✅ 天气发送成功")
     except Exception as e:
-        print(f"❌ 出错: {sanitize(str(e))}")
-        try:
-            push_feishu(f"监控推送失败：{sanitize(str(e))}")
-        except Exception:
-            pass
+        print(f"❌ 天气失败: {sanitize(str(e))}")
+
+    time.sleep(1.5)
+
+    # 第2条：军事 + 国际政治 + 亚洲台海
+    try:
+        part1 = ["—— 新闻资讯（一） ——"]
+        for name in ["军事", "国际政治", "亚洲台海"]:
+            cfg = next(b for b in BLOCKS if b["name"] == name)
+            items = fetch_block(cfg)
+            part1.append(f"\n【{name}】（{len(items)}条）")
+            if not items:
+                part1.append("（暂无）")
+            for t, u in items:
+                part1.append(f"· {t}")
+                part1.append(f"  {u}")
+        push_feishu("\n".join(part1))
+        print("✅ 第一部分新闻发送成功")
+    except Exception as e:
+        print(f"❌ 第一部分失败: {sanitize(str(e))}")
+
+    time.sleep(2)
+
+    # 第3条：油气 + 辽宁民生 + 物价
+    try:
+        part2 = ["—— 新闻资讯（二） ——"]
+        for name in ["油气", "辽宁民生"]:
+            cfg = next(b for b in BLOCKS if b["name"] == name)
+            items = fetch_block(cfg)
+            part2.append(f"\n【{name}】（{len(items)}条）")
+            if not items:
+                part2.append("（暂无）")
+            for t, u in items:
+                part2.append(f"· {t}")
+                part2.append(f"  {u}")
+        part2.append("\n" + price_block())
+        push_feishu("\n".join(part2))
+        print("✅ 第二部分新闻+物价发送成功")
+    except Exception as e:
+        print(f"❌ 第二部分失败: {sanitize(str(e))}")
+
+    print("✅ 全部完成")
 
 
 if __name__ == "__main__":
