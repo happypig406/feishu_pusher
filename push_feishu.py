@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import re
 import requests
@@ -13,65 +14,89 @@ LOCATION = "122.99,41.11"
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 
-# ===== 关键词大幅扩充 =====
+# ========== 新闻源（中新网官方 RSS） ==========
 RSS_SOURCES = [
     {
         "name": "军事",
         "url": "http://www.chinanews.com.cn/rss/mil.xml",
         "max": 8,
         "kw": [
-            # 装备体系
             "导弹", "无人机", "战机", "轰炸机", "战斗机", "预警机", "侦察机",
-            "航母", "军舰", "驱逐舰", "护卫舰", "潜艇", "核潜艇", "登陆舰",
-            "坦克", "装甲车", "火炮", "火箭炮", "雷达", "卫星",
-            # 战略武器
-            "核", "核武器", "弹道", "巡航导弹", "高超音速", "拦截", "反导",
-            # 地缘热点
-            "俄", "乌", "以军", "以色列", "伊朗", "叙利亚", "胡塞", "黎巴嫩",
-            "朝鲜", "半岛", "台海", "南海", "东海",
-            # 行动与态势
-            "军演", "演习", "演训", "部署", "增兵", "撤军", "空袭", "袭击",
-            "击落", "击沉", "击毙", "俘虏", "战损", "停火", "和谈",
-            "北约", "美军", "俄军", "以军", "日军", "韩军", "解放军",
-            "国防部", "参谋长", "司令", "上将",
+            "航母", "军舰", "驱逐舰", "护卫舰", "潜艇", "核潜艇",
+            "坦克", "火炮", "火箭炮", "雷达",
+            "核", "弹道", "巡航导弹", "高超音速", "拦截", "反导",
+            "俄", "乌", "乌克兰", "以军", "以色列", "伊朗", "叙利亚", "胡塞",
+            "朝鲜", "台海", "南海",
+            "空袭", "袭击", "军演", "演习", "部署", "增兵", "撤军",
+            "击落", "击沉", "停火",
+            "北约", "美军", "俄军", "解放军", "国防部",
         ],
     },
     {
         "name": "国际",
         "url": "http://www.chinanews.com.cn/rss/world.xml",
+        "max": 8,
+        "kw": [
+            "导弹", "无人机", "空袭", "袭击", "炮击", "轰炸",
+            "俄", "乌", "乌克兰", "以色列", "伊朗", "以军", "哈马斯", "胡塞",
+            "叙利亚", "黎巴嫩", "普京", "泽连斯基", "内塔尼亚胡",
+            "停火", "和谈", "谈判", "制裁",
+            "美军", "北约", "驻军", "基地",
+            "霍尔木兹", "石油", "天然气", "油价",
+        ],
+    },
+    {
+        "name": "国际政治",
+        "url": "http://www.chinanews.com.cn/rss/world.xml",
         "max": 6,
         "kw": [
-            # 冲突与战争
-            "导弹", "无人机", "拦截", "俄", "乌", "乌克兰", "以色列", "伊朗",
-            "以军", "哈马斯", "胡塞", "真主党", "叙利亚", "黎巴嫩",
-            "空袭", "袭击", "炮击", "轰炸", "伤亡", "阵亡",
-            "停火", "谈判", "和谈", "斡旋",
-            # 军事部署
-            "美军", "北约", "驻军", "基地", "军演", "演习",
-            # 地缘能源（国际视角）
-            "霍尔木兹", "海峡", "能源", "石油", "原油", "天然气", "油价",
-            "制裁", "禁运", "出口", "进口", "关税",
-            # 大国关系
-            "普京", "泽连斯基", "内塔尼亚胡", "特朗普", "拜登",
-            "特朗普", "会晤", "通话", "访美", "访俄", "访华",
+            # 日韩
+            "日本", "东京", "岸田", "石破", "自民党", "自卫队", "日美",
+            "韩国", "首尔", "尹锡悦", "李在明", "韩军", "美日韩",
+            # 台海
+            "台海", "台湾", "台军", "解放军", "环台", "实弹",
+            # 东南亚
+            "菲律宾", "马科斯", "南海", "仁爱礁", "黄岩岛", "东盟",
+            "越南", "缅甸", "泰国", "柬埔寨", "印尼",
+            # 朝鲜半岛
+            "朝鲜", "平壤", "金正恩", "射弹", "洲际导弹",
+            # 大局势
+            "会晤", "通话", "访华", "访美", "峰会", "联合声明",
         ],
     },
     {
         "name": "油气",
         "url": "http://www.chinanews.com.cn/rss/finance.xml",
-        "max": 5,
+        "max": 6,
         "kw": [
-            # 品类
             "石油", "油价", "原油", "布伦特", "成品油", "汽油", "柴油",
-            "天然气", "液化天然气", "LNG", "页岩气", "页岩油",
-            # 价格与调价
-            "调价", "上涨", "下跌", "暴跌", "暴涨", "企稳", "震荡",
-            # 地缘供应
-            "霍尔木兹", "海峡", "减产", "增产", "欧佩克", "限产",
-            # 物流
-            "油轮", "油港", "管道", "出口", "进口", "炼化", "炼厂",
-            # 宏观
-            "能源", "燃料", "柴油车", "汽油车",
+            "天然气", "液化天然气", "LNG", "页岩气",
+            "调价", "上涨", "下跌", "暴跌", "增产", "减产", "限产",
+            "欧佩克", "霍尔木兹", "油轮", "管道", "炼化", "炼厂",
+            "能源", "燃料",
+        ],
+    },
+    {
+        "name": "国内",
+        "url": "http://www.chinanews.com.cn/rss/china.xml",
+        "max": 6,
+        "kw": [
+            "辽宁", "鞍山", "沈阳", "大连", "东北",
+            "防汛", "暴雨", "台风", "寒潮", "高温", "预警",
+            "发改委", "物价", "保供", "粮价", "菜价",
+            "政策", "国务院", "民生", "补贴", "养老金",
+            "事故", "救援", "地震", "洪水",
+        ],
+    },
+    {
+        "name": "辽宁民生",
+        "url": "http://www.chinanews.com.cn/rss/society.xml",
+        "max": 4,
+        "kw": [
+            "辽宁", "鞍山", "沈阳", "大连",
+            "菜价", "肉价", "物价", "保供",
+            "供暖", "供气", "水电", "公交",
+            "补贴", "民生", "预警", "防汛",
         ],
     },
 ]
@@ -79,17 +104,19 @@ RSS_SOURCES = [
 LN_PRICE_URL = "https://fgw.ln.gov.cn/fgw/xxgk/jgjc/mrjg/index.shtml"
 
 PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
-              "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
+              "大米", "面粉", "大白菜", "黄瓜", "土豆", "西红柿",
+              "青椒", "芸豆", "韭菜", "菠菜", "芹菜"]
 
 
 # ========== 天气 ==========
 def fetch():
     headers = {"X-QW-Api-Key": QW_KEY}
-    now = requests.get(f"{API_HOST}/v7/weather/now",
+    base = API_HOST.rstrip("/")
+    now = requests.get(f"{base}/v7/weather/now",
                        params={"location": LOCATION}, headers=headers, timeout=10).json()
-    hourly = requests.get(f"{API_HOST}/v7/weather/24h",
+    hourly = requests.get(f"{base}/v7/weather/24h",
                           params={"location": LOCATION}, headers=headers, timeout=10).json()
-    daily = requests.get(f"{API_HOST}/v7/weather/3d",
+    daily = requests.get(f"{base}/v7/weather/3d",
                          params={"location": LOCATION}, headers=headers, timeout=10).json()
     return {"now": now, "hourly": hourly, "daily": daily}
 
@@ -119,7 +146,7 @@ def build_text(data):
     return "\n".join(lines)
 
 
-# ========== 辽宁物价 ==========
+# ========== 物价 ==========
 def fetch_ln_prices():
     try:
         r = requests.get(LN_PRICE_URL, timeout=10,
@@ -128,7 +155,7 @@ def fetch_ln_prices():
         text = re.sub(r"<.*?>", " ", r.text)
         text = re.sub(r"\s+", " ", text)
     except Exception as e:
-        print("物价页拉取失败:", e)
+        print("物价页拉取失败:", sanitize(str(e)))
         return [], ""
 
     mtime = ""
@@ -161,12 +188,19 @@ def price_block():
 
 
 # ========== 新闻 ==========
+def sanitize(msg):
+    """把报错里的 URL / host 打成 <hidden>，避免回传飞书暴露域名"""
+    msg = re.sub(r"https?://[^\s'\"]+", "<hidden>", msg)
+    msg = re.sub(r"[a-z0-9\-]+\.(qweatherapi\.com|chinanews\.com\.cn|ln\.gov\.cn)", "<hidden>", msg)
+    return msg
+
+
 def relevance(title, kw_list):
-    """命中关键词越多、越靠前，分越高，用来排序挑典型"""
     score = 0
-    for i, kw in enumerate(kw_list):
+    for kw in kw_list:
         if kw in title:
-            score += (len(kw_list) - i)  # 靠前的词权重高
+            # 词越长越具体，权重越高；短词（如"俄"）权重低
+            score += len(kw)
     return score
 
 
@@ -176,36 +210,34 @@ def fetch_news():
     for src in RSS_SOURCES:
         try:
             d = feedparser.parse(src["url"])
-            count = 0
-            # 先给本源所有候选打分排序，挑最典型的
             cands = []
             for e in d.entries:
                 title = (e.get("title") or "").strip()
                 link = (e.get("link") or "").strip()
-                if not title or not link:
-                    continue
-                if title in seen:
+                if not title or not link or title in seen:
                     continue
                 kw = src.get("kw", [])
                 if kw and not any(k in title for k in kw):
                     continue
                 seen.add(title)
                 cands.append((src["name"], title, link, relevance(title, kw)))
+            # 按权重降序，取最典型的
             cands.sort(key=lambda x: -x[3])
+            count = 0
             for item in cands:
                 if count >= src["max"]:
                     break
                 results.append((item[0], item[1], item[2]))
                 count += 1
         except Exception as ex:
-            print(f"[{src['name']}] RSS失败: {ex}")
+            print(f"[{src['name']}] RSS失败: {sanitize(str(ex))}")
     return results
 
 
 def news_block():
     items = fetch_news()
     if not items:
-        return "—— 军事/油气资讯 ——\n（今日无匹配条目）"
+        return "—— 新闻资讯 ——\n（暂无匹配条目）"
 
     seen12 = set()
     dedup = []
@@ -221,20 +253,20 @@ def news_block():
     if os.path.exists(NEWS_LAST_FILE):
         last = open(NEWS_LAST_FILE, encoding="utf-8").read().strip()
     if key == last:
-        return "—— 军事/油气资讯 ——\n（无新条目）"
+        return "—— 新闻资讯 ——\n（无新条目）"
 
-    # 按分类归组，每类最多 6 条
     groups = {}
     for s, t, u in dedup:
         groups.setdefault(s, []).append((t, u))
 
-    lines = ["—— 军事/油气资讯 ——"]
-    order = ["军事", "国际", "油气"]
+    lines = ["—— 新闻资讯 ——"]
+    order = ["军事", "国际政治", "国际", "油气", "国内", "辽宁民生"]
+    cap = {"军事": 6, "国际政治": 6, "国际": 5, "油气": 5, "国内": 4, "辽宁民生": 3}
     for name in order:
         if name not in groups:
             continue
         lines.append(f"\n【{name}】")
-        for t, u in groups[name][:6]:
+        for t, u in groups[name][:cap.get(name, 5)]:
             lines.append(f"· {t}")
             lines.append(f"  {u}")
 
@@ -261,9 +293,9 @@ def main():
         push_feishu(text)
         print("✅ 完成")
     except Exception as e:
-        print(f"❌ 出错: {e}")
+        print(f"❌ 出错: {sanitize(str(e))}")
         try:
-            push_feishu(f"监控推送失败：{e}")
+            push_feishu(f"监控推送失败：{sanitize(str(e))}")
         except Exception:
             pass
 
