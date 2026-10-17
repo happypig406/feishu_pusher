@@ -3,38 +3,25 @@ name: 推送飞书
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 * * * *"
 
 jobs:
   push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-
-      - name: 下载上次的新闻记录
-        uses: actions/download-artifact@v4
+      
+      - name: 设置 Python
+        uses: actions/setup-python@v5
         with:
-          name: last-news
-          path: .
-        continue-on-error: true
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: 装依赖
-        run: pip install -r requirements.txt
-
-      - name: 跑推送脚本
+          python-version: "3.10"
+          
+      - name: 安装依赖
+        run: pip install requests feedparser
+        
+      - name: 运行推送脚本
         env:
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
-          QWEATHER_KEY: ${{ secrets.QWEATHER_KEY }}
-          API_HOST: ${{ secrets.API_HOST }}
         run: python push_feishu.py
-
-      - name: 上传新闻记录
-        uses: actions/upload-artifact@v4
-        with:
-          name: last-news
-          path: last_news.txt
-          retention-days: 7
