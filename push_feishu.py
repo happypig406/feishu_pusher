@@ -14,12 +14,12 @@ LOCATION = "122.99,41.11"
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 
-# ========== 新闻源（中新网官方 RSS） ==========
+# ========== 新闻源 ==========
 RSS_SOURCES = [
     {
         "name": "军事",
         "url": "http://www.chinanews.com.cn/rss/mil.xml",
-        "max": 8,
+        "max": 20,
         "kw": [
             "导弹", "无人机", "战机", "轰炸机", "战斗机", "预警机", "侦察机",
             "航母", "军舰", "驱逐舰", "护卫舰", "潜艇", "核潜艇",
@@ -33,70 +33,67 @@ RSS_SOURCES = [
         ],
     },
     {
-        "name": "国际",
+        "name": "国际政治",
         "url": "http://www.chinanews.com.cn/rss/world.xml",
-        "max": 8,
+        "max": 20,
         "kw": [
-            "导弹", "无人机", "空袭", "袭击", "炮击", "轰炸",
-            "俄", "乌", "乌克兰", "以色列", "伊朗", "以军", "哈马斯", "胡塞",
-            "叙利亚", "黎巴嫩", "普京", "泽连斯基", "内塔尼亚胡",
-            "停火", "和谈", "谈判", "制裁",
+            "美国", "白宫", "特朗普", "拜登", "布林肯",
+            "俄罗斯", "普京", "克里姆林宫", "拉夫罗夫",
+            "中国", "外交部", "王毅",
+            "以色列", "内塔尼亚胡", "伊朗",
+            "乌克兰", "停火", "和谈", "谈判", "制裁",
             "美军", "北约", "驻军", "基地",
-            "霍尔木兹", "石油", "天然气", "油价",
+            "会晤", "通话", "访华", "访美", "峰会", "联合声明",
+            "联合国", "安理会", "G7", "G20",
         ],
     },
     {
-        "name": "国际政治",
+        "name": "亚洲台海",
         "url": "http://www.chinanews.com.cn/rss/world.xml",
-        "max": 6,
+        "max": 20,
         "kw": [
-            # 日韩
-            "日本", "东京", "岸田", "石破", "自民党", "自卫队", "日美",
-            "韩国", "首尔", "尹锡悦", "李在明", "韩军", "美日韩",
-            # 台海
-            "台海", "台湾", "台军", "解放军", "环台", "实弹",
-            # 东南亚
+            "台海", "台湾", "台军", "赖清德", "民进党", "以武谋独",
+            "解放军", "环台", "实弹", "演训", "海峡中线",
+            "钓鱼岛", "东海",
+            "日本", "岸田", "石破", "自卫队", "日美",
+            "韩国", "尹锡悦", "李在明", "美日韩",
+            "朝鲜", "金正恩", "射弹", "洲际导弹",
             "菲律宾", "马科斯", "南海", "仁爱礁", "黄岩岛", "东盟",
             "越南", "缅甸", "泰国", "柬埔寨", "印尼",
-            # 朝鲜半岛
-            "朝鲜", "平壤", "金正恩", "射弹", "洲际导弹",
-            # 大局势
-            "会晤", "通话", "访华", "访美", "峰会", "联合声明",
+        ],
+    },
+    {
+        # 台海国内视角补一条源，提高命中量
+        "name": "亚洲台海",
+        "url": "http://www.chinanews.com.cn/rss/china.xml",
+        "max": 20,
+        "kw": [
+            "台海", "台湾", "赖清德", "台军", "解放军", "环台",
+            "钓鱼岛", "南海", "仁爱礁", "黄岩岛",
+            "辽宁", "鞍山", "台办", "两岸",
         ],
     },
     {
         "name": "油气",
         "url": "http://www.chinanews.com.cn/rss/finance.xml",
-        "max": 6,
+        "max": 20,
         "kw": [
             "石油", "油价", "原油", "布伦特", "成品油", "汽油", "柴油",
             "天然气", "液化天然气", "LNG", "页岩气",
             "调价", "上涨", "下跌", "暴跌", "增产", "减产", "限产",
             "欧佩克", "霍尔木兹", "油轮", "管道", "炼化", "炼厂",
-            "能源", "燃料",
-        ],
-    },
-    {
-        "name": "国内",
-        "url": "http://www.chinanews.com.cn/rss/china.xml",
-        "max": 6,
-        "kw": [
-            "辽宁", "鞍山", "沈阳", "大连", "东北",
-            "防汛", "暴雨", "台风", "寒潮", "高温", "预警",
-            "发改委", "物价", "保供", "粮价", "菜价",
-            "政策", "国务院", "民生", "补贴", "养老金",
-            "事故", "救援", "地震", "洪水",
+            "能源", "燃料", "储备",
         ],
     },
     {
         "name": "辽宁民生",
         "url": "http://www.chinanews.com.cn/rss/society.xml",
-        "max": 4,
+        "max": 20,
         "kw": [
             "辽宁", "鞍山", "沈阳", "大连",
             "菜价", "肉价", "物价", "保供",
             "供暖", "供气", "水电", "公交",
-            "补贴", "民生", "预警", "防汛",
+            "补贴", "民生", "预警", "防汛", "寒潮",
         ],
     },
 ]
@@ -157,19 +154,16 @@ def fetch_ln_prices():
     except Exception as e:
         print("物价页拉取失败:", sanitize(str(e)))
         return [], ""
-
     mtime = ""
     m = re.search(r"监测时间[:：]\s*(\d{4}-\d{2}-\d{2})", text)
     if m:
         mtime = m.group(1)
-
     rows = []
     for name in PRICE_WANT:
         pat = re.escape(name) + r".*?([\d]+\.[\d]+)"
         m2 = re.search(pat, text)
         if m2:
             rows.append(f"{name} {m2.group(1)}元")
-
     return rows, mtime
 
 
@@ -187,20 +181,45 @@ def price_block():
     return "\n".join(lines)
 
 
-# ========== 新闻 ==========
+# ========== 脱敏 ==========
 def sanitize(msg):
-    """把报错里的 URL / host 打成 <hidden>，避免回传飞书暴露域名"""
     msg = re.sub(r"https?://[^\s'\"]+", "<hidden>", msg)
     msg = re.sub(r"[a-z0-9\-]+\.(qweatherapi\.com|chinanews\.com\.cn|ln\.gov\.cn)", "<hidden>", msg)
     return msg
+
+
+# ========== 权重表（大国/热点高分） ==========
+HOT_WEIGHT = {
+    # 大国
+    "习近平": 20, "王毅": 18, "外交部": 16,
+    "特朗普": 20, "拜登": 18, "布林肯": 16, "白宫": 18,
+    "普京": 20, "拉夫罗夫": 16, "克里姆林宫": 18, "俄罗斯": 14,
+    # 中东
+    "以色列": 16, "内塔尼亚胡": 18, "伊朗": 16, "最高领袖": 18,
+    "哈马斯": 14, "真主党": 14,
+    # 军事核心
+    "解放军": 18, "美军": 16, "俄军": 16, "以军": 16, "北约": 14,
+    "导弹": 12, "无人机": 12, "航母": 12, "核潜艇": 14, "高超音速": 16,
+    # 台海/亚洲（高分）
+    "台海": 20, "赖清德": 18, "以武谋独": 20, "环台": 18, "实弹": 16,
+    "钓鱼岛": 18, "仁爱礁": 18, "黄岩岛": 18, "南海": 14,
+    "日本": 12, "石破": 14, "岸田": 14, "自卫队": 12,
+    "韩国": 12, "尹锡悦": 14, "李在明": 14,
+    "朝鲜": 14, "金正恩": 18, "洲际导弹": 18,
+    "菲律宾": 14, "马科斯": 16, "东盟": 12,
+    # 油气
+    "霍尔木兹": 18, "欧佩克": 12, "布伦特": 12, "原油": 10,
+    # 互动
+    "会晤": 14, "峰会": 14, "联合声明": 14, "安理会": 14, "联合国": 10,
+    "停火": 12, "制裁": 12,
+}
 
 
 def relevance(title, kw_list):
     score = 0
     for kw in kw_list:
         if kw in title:
-            # 词越长越具体，权重越高；短词（如"俄"）权重低
-            score += len(kw)
+            score += HOT_WEIGHT.get(kw, len(kw))
     return score
 
 
@@ -221,7 +240,6 @@ def fetch_news():
                     continue
                 seen.add(title)
                 cands.append((src["name"], title, link, relevance(title, kw)))
-            # 按权重降序，取最典型的
             cands.sort(key=lambda x: -x[3])
             count = 0
             for item in cands:
@@ -234,11 +252,8 @@ def fetch_news():
     return results
 
 
-def news_block():
+def news_groups():
     items = fetch_news()
-    if not items:
-        return "—— 新闻资讯 ——\n（暂无匹配条目）"
-
     seen12 = set()
     dedup = []
     for s, t, u in items:
@@ -248,29 +263,22 @@ def news_block():
         seen12.add(k12)
         dedup.append((s, t, u))
 
-    key = "\n".join(f"{s}|{t}" for s, t, _ in dedup)
-    last = ""
-    if os.path.exists(NEWS_LAST_FILE):
-        last = open(NEWS_LAST_FILE, encoding="utf-8").read().strip()
-    if key == last:
-        return "—— 新闻资讯 ——\n（无新条目）"
-
     groups = {}
     for s, t, u in dedup:
         groups.setdefault(s, []).append((t, u))
+    return groups
 
-    lines = ["—— 新闻资讯 ——"]
-    order = ["军事", "国际政治", "国际", "油气", "国内", "辽宁民生"]
-    cap = {"军事": 6, "国际政治": 6, "国际": 5, "油气": 5, "国内": 4, "辽宁民生": 3}
-    for name in order:
+
+def block_for(names, cap=10):
+    groups = news_groups()
+    lines = []
+    for name in names:
         if name not in groups:
             continue
         lines.append(f"\n【{name}】")
-        for t, u in groups[name][:cap.get(name, 5)]:
+        for t, u in groups[name][:cap]:
             lines.append(f"· {t}")
             lines.append(f"  {u}")
-
-    open(NEWS_LAST_FILE, "w", encoding="utf-8").write(key)
     return "\n".join(lines)
 
 
@@ -286,11 +294,18 @@ def push_feishu(text):
 
 def main():
     try:
-        data = fetch()
-        text = build_text(data)
-        text += "\n\n" + price_block()
-        text += "\n\n" + news_block()
-        push_feishu(text)
+        # 第一条：天气 + 军事/国际政治/亚洲台海
+        text1 = build_text(fetch())
+        text1 += "\n\n—— 新闻资讯（一） ——"
+        text1 += block_for(["军事", "国际政治", "亚洲台海"], cap=10)
+        push_feishu(text1)
+
+        # 第二条：油气 + 辽宁民生 + 物价
+        text2 = "—— 新闻资讯（二） ——"
+        text2 += block_for(["油气", "辽宁民生"], cap=10)
+        text2 += "\n\n" + price_block()
+        push_feishu(text2)
+
         print("✅ 完成")
     except Exception as e:
         print(f"❌ 出错: {sanitize(str(e))}")
