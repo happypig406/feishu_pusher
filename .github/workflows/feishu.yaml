@@ -10,18 +10,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # 把 Secrets 注入为环境变量，脚本通过 os.getenv 读取
+    env:
+      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+      QWEATHER_KEY:   ${{ secrets.QWEATHER_KEY }}
+      API_HOST:       ${{ secrets.API_HOST }}
+      LOCATION:       ${{ secrets.LOCATION }}
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: 设置 Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          
+
       - name: 安装依赖
-        run: pip install requests feedparser
-        
+        run: pip install --upgrade pip && pip install requests feedparser
+
+      - name: Debug env presence (不会打印 secret 值，只打印是否存在)
+        run: |
+          python - <<'PY'
+          import os
+          print('FEISHU_WEBHOOK present:', 'FEISHU_WEBHOOK' in os.environ)
+          print('QWEATHER_KEY present:', 'QWEATHER_KEY' in os.environ)
+          print('API_HOST present:', 'API_HOST' in os.environ)
+          print('LOCATION present:', 'LOCATION' in os.environ)
+          PY
+
       - name: 运行推送脚本
-        env:
-          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
         run: python push_feishu.py
