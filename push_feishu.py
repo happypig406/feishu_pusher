@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import re
 import requests
@@ -14,27 +13,66 @@ LOCATION = "122.99,41.11"
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 
-# 中新网官方RSS [1,5](@ref)
+# ===== 关键词大幅扩充 =====
 RSS_SOURCES = [
     {
         "name": "军事",
         "url": "http://www.chinanews.com.cn/rss/mil.xml",
-        "max": 4,
-        "kw": [],   # 军事源全留
+        "max": 8,
+        "kw": [
+            # 装备体系
+            "导弹", "无人机", "战机", "轰炸机", "战斗机", "预警机", "侦察机",
+            "航母", "军舰", "驱逐舰", "护卫舰", "潜艇", "核潜艇", "登陆舰",
+            "坦克", "装甲车", "火炮", "火箭炮", "雷达", "卫星",
+            # 战略武器
+            "核", "核武器", "弹道", "巡航导弹", "高超音速", "拦截", "反导",
+            # 地缘热点
+            "俄", "乌", "以军", "以色列", "伊朗", "叙利亚", "胡塞", "黎巴嫩",
+            "朝鲜", "半岛", "台海", "南海", "东海",
+            # 行动与态势
+            "军演", "演习", "演训", "部署", "增兵", "撤军", "空袭", "袭击",
+            "击落", "击沉", "击毙", "俘虏", "战损", "停火", "和谈",
+            "北约", "美军", "俄军", "以军", "日军", "韩军", "解放军",
+            "国防部", "参谋长", "司令", "上将",
+        ],
     },
     {
-        "name": "军事",
+        "name": "国际",
         "url": "http://www.chinanews.com.cn/rss/world.xml",
-        "max": 3,
-        "kw": ["导弹", "无人机", "拦截", "俄", "乌", "以军", "以色列",
-               "伊朗", "霍尔木兹", "美军", "北约", "演习", "核", "战机", "航母"],
+        "max": 6,
+        "kw": [
+            # 冲突与战争
+            "导弹", "无人机", "拦截", "俄", "乌", "乌克兰", "以色列", "伊朗",
+            "以军", "哈马斯", "胡塞", "真主党", "叙利亚", "黎巴嫩",
+            "空袭", "袭击", "炮击", "轰炸", "伤亡", "阵亡",
+            "停火", "谈判", "和谈", "斡旋",
+            # 军事部署
+            "美军", "北约", "驻军", "基地", "军演", "演习",
+            # 地缘能源（国际视角）
+            "霍尔木兹", "海峡", "能源", "石油", "原油", "天然气", "油价",
+            "制裁", "禁运", "出口", "进口", "关税",
+            # 大国关系
+            "普京", "泽连斯基", "内塔尼亚胡", "特朗普", "拜登",
+            "特朗普", "会晤", "通话", "访美", "访俄", "访华",
+        ],
     },
     {
         "name": "油气",
         "url": "http://www.chinanews.com.cn/rss/finance.xml",
-        "max": 3,
-        "kw": ["石油", "油价", "原油", "布伦特", "成品油", "调价",
-               "天然气", "霍尔木兹", "油轮", "能源"],
+        "max": 5,
+        "kw": [
+            # 品类
+            "石油", "油价", "原油", "布伦特", "成品油", "汽油", "柴油",
+            "天然气", "液化天然气", "LNG", "页岩气", "页岩油",
+            # 价格与调价
+            "调价", "上涨", "下跌", "暴跌", "暴涨", "企稳", "震荡",
+            # 地缘供应
+            "霍尔木兹", "海峡", "减产", "增产", "欧佩克", "限产",
+            # 物流
+            "油轮", "油港", "管道", "出口", "进口", "炼化", "炼厂",
+            # 宏观
+            "能源", "燃料", "柴油车", "汽油车",
+        ],
     },
 ]
 
@@ -44,7 +82,7 @@ PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
               "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
 
 
-# ========== 天气（原样） ==========
+# ========== 天气 ==========
 def fetch():
     headers = {"X-QW-Api-Key": QW_KEY}
     now = requests.get(f"{API_HOST}/v7/weather/now",
@@ -81,7 +119,7 @@ def build_text(data):
     return "\n".join(lines)
 
 
-# ========== 辽宁物价（修稳版） ==========
+# ========== 辽宁物价 ==========
 def fetch_ln_prices():
     try:
         r = requests.get(LN_PRICE_URL, timeout=10,
@@ -93,16 +131,13 @@ def fetch_ln_prices():
         print("物价页拉取失败:", e)
         return [], ""
 
-    # 监测时间
     mtime = ""
     m = re.search(r"监测时间[:：]\s*(\d{4}-\d{2}-\d{2})", text)
     if m:
         mtime = m.group(1)
 
-    # 按名称提：行里出现「鲜猪肉 ... 9.31」就抓末尾数字
     rows = []
     for name in PRICE_WANT:
-        # 名称后到价格：中间忽略规格，最后一个是数字
         pat = re.escape(name) + r".*?([\d]+\.[\d]+)"
         m2 = re.search(pat, text)
         if m2:
@@ -125,7 +160,16 @@ def price_block():
     return "\n".join(lines)
 
 
-# ========== 新闻（军事/油气） ==========
+# ========== 新闻 ==========
+def relevance(title, kw_list):
+    """命中关键词越多、越靠前，分越高，用来排序挑典型"""
+    score = 0
+    for i, kw in enumerate(kw_list):
+        if kw in title:
+            score += (len(kw_list) - i)  # 靠前的词权重高
+    return score
+
+
 def fetch_news():
     results = []
     seen = set()
@@ -133,6 +177,8 @@ def fetch_news():
         try:
             d = feedparser.parse(src["url"])
             count = 0
+            # 先给本源所有候选打分排序，挑最典型的
+            cands = []
             for e in d.entries:
                 title = (e.get("title") or "").strip()
                 link = (e.get("link") or "").strip()
@@ -144,10 +190,13 @@ def fetch_news():
                 if kw and not any(k in title for k in kw):
                     continue
                 seen.add(title)
-                results.append((src["name"], title, link))
-                count += 1
+                cands.append((src["name"], title, link, relevance(title, kw)))
+            cands.sort(key=lambda x: -x[3])
+            for item in cands:
                 if count >= src["max"]:
                     break
+                results.append((item[0], item[1], item[2]))
+                count += 1
         except Exception as ex:
             print(f"[{src['name']}] RSS失败: {ex}")
     return results
@@ -158,14 +207,13 @@ def news_block():
     if not items:
         return "—— 军事/油气资讯 ——\n（今日无匹配条目）"
 
-    # 前8字去重
-    seen8 = set()
+    seen12 = set()
     dedup = []
     for s, t, u in items:
-        k8 = t[:8]
-        if k8 in seen8:
+        k12 = t[:12]
+        if k12 in seen12:
             continue
-        seen8.add(k8)
+        seen12.add(k12)
         dedup.append((s, t, u))
 
     key = "\n".join(f"{s}|{t}" for s, t, _ in dedup)
@@ -175,20 +223,26 @@ def news_block():
     if key == last:
         return "—— 军事/油气资讯 ——\n（无新条目）"
 
-    lines = ["—— 军事/油气资讯 ——"]
-    cur = None
+    # 按分类归组，每类最多 6 条
+    groups = {}
     for s, t, u in dedup:
-        if s != cur:
-            cur = s
-            lines.append(f"\n【{s}】")
-        lines.append(f"· {t}")
-        lines.append(f"  {u}")
+        groups.setdefault(s, []).append((t, u))
+
+    lines = ["—— 军事/油气资讯 ——"]
+    order = ["军事", "国际", "油气"]
+    for name in order:
+        if name not in groups:
+            continue
+        lines.append(f"\n【{name}】")
+        for t, u in groups[name][:6]:
+            lines.append(f"· {t}")
+            lines.append(f"  {u}")
 
     open(NEWS_LAST_FILE, "w", encoding="utf-8").write(key)
     return "\n".join(lines)
 
 
-# ========== 飞书（原样） ==========
+# ========== 飞书 ==========
 def push_feishu(text):
     if not WEBHOOK:
         raise RuntimeError("FEISHU_WEBHOOK 没配置")
