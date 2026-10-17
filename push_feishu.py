@@ -5,6 +5,7 @@ import time
 import requests
 import feedparser
 
+# ========== 读取 Secrets ==========
 WEBHOOK = os.getenv("FEISHU_WEBHOOK")
 QW_KEY = os.getenv("QWEATHER_KEY")
 API_HOST = os.getenv("API_HOST")
@@ -12,98 +13,33 @@ LOCATION = "122.99,41.11"
 
 NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_news.txt")
 
-# ========== 5板块配置 ==========
-BLOCKS = [
-    {
-        "name": "军事",
-        "cap": 10,
-        "hard": ["导弹", "无人机", "拦截", "俄", "乌", "以军", "以色列", "伊朗",
-                 "霍尔木兹", "美军", "北约", "演习", "核", "战机", "航母", "解放军", "防空"],
-        "srcs": [
-            {"url": "http://www.chinanews.com.cn/rss/mil.xml", "max": 10, "kw": []},
-            {"url": "http://www.chinanews.com.cn/rss/world.xml", "max": 5, "kw": ["导弹", "无人机", "俄", "乌", "以军", "以色列", "伊朗", "霍尔木兹", "美军", "北约", "演习", "核", "战机", "航母"]},
-        ],
-    },
-    {
-        "name": "国际政治",
-        "cap": 10,
-        "hard": ["普京", "特朗普", "拜登", "内塔尼亚胡", "伊朗", "朝鲜", "联合国", "安理会", "王毅", "制裁", "和谈", "峰会"],
-        "srcs": [
-            {"url": "http://www.chinanews.com.cn/rss/world.xml", "max": 10, "kw": ["普京", "特朗普", "拜登", "内塔尼亚胡", "伊朗", "朝鲜", "联合国", "安理会", "王毅", "制裁"]},
-        ],
-    },
-    {
-        "name": "亚洲台海",
-        "cap": 10,
-        "hard": ["台海", "赖清德", "钓鱼岛", "仁爱礁", "黄岩岛", "南海", "解放军", "菲律宾", "朝鲜", "韩国", "日本", "金正恩", "尹锡悦", "马科斯"],
-        "srcs": [
-            {"url": "http://www.chinanews.com.cn/rss/world.xml", "max": 5, "kw": ["台海", "钓鱼岛", "南海", "菲律宾", "朝鲜", "韩国", "日本"]},
-            {"url": "http://www.chinanews.com.cn/rss/tw.xml", "max": 5, "kw": ["台", "两岸"]},
-        ],
-    },
-    {
-        "name": "油气",
-        "cap": 10,
-        "hard": ["石油", "油价", "原油", "布伦特", "成品油", "天然气", "霍尔木兹", "油轮", "能源", "LNG", "欧佩克"],
-        "srcs": [
-            {"url": "http://www.chinanews.com.cn/rss/finance.xml", "max": 10, "kw": ["石油", "油价", "原油", "布伦特", "天然气", "霍尔木兹", "能源"]},
-        ],
-    },
-    {
-        "name": "辽宁民生",
-        "cap": 10,
-        "hard": ["辽宁", "鞍山", "沈阳", "大连", "物价", "菜价", "供暖", "寒潮", "防汛", "民生"],
-        "srcs": [
-            {"url": "http://www.chinanews.com.cn/rss/society.xml", "max": 5, "kw": ["辽宁", "鞍山", "沈阳", "大连", "供暖", "寒潮"]},
-            {"url": "http://www.chinanews.com.cn/rss/china.xml", "max": 5, "kw": ["辽宁", "鞍山", "沈阳", "大连"]},
-        ],
-    },
+# 中新网官方RSS
+RSS_SOURCES = [
+    {"name": "军事", "url": "http://www.chinanews.com.cn/rss/mil.xml", "max": 4, "kw": []},
+    {"name": "军事", "url": "http://www.chinanews.com.cn/rss/world.xml", "max": 3, "kw": ["导弹", "无人机", "拦截", "俄", "乌", "以军", "以色列", "伊朗", "霍尔木兹", "美军", "北约", "演习", "核", "战机", "航母"]},
+    {"name": "油气", "url": "http://www.chinanews.com.cn/rss/finance.xml", "max": 3, "kw": ["石油", "油价", "原油", "布伦特", "成品油", "调价", "天然气", "霍尔木兹", "油轮", "能源"]},
 ]
 
-HOT_WEIGHT = {
-    "普京": 20, "特朗普": 20, "拜登": 18, "内塔尼亚胡": 18, "金正恩": 18,
-    "台海": 20, "赖清德": 18, "钓鱼岛": 18, "仁爱礁": 18, "霍尔木兹": 18,
-    "解放军": 18, "导弹": 12, "无人机": 12, "航母": 12, "北约": 14,
-    "伊朗": 16, "以色列": 16, "俄罗斯": 14, "乌克兰": 14,
-    "菲律宾": 14, "马科斯": 16, "朝鲜": 14, "日本": 12, "韩国": 12,
-    "原油": 10, "布伦特": 12, "欧佩克": 12,
-    "辽宁": 12, "鞍山": 14, "沈阳": 12, "大连": 12,
-}
-
 LN_PRICE_URL = "https://fgw.ln.gov.cn/fgw/xxgk/jgjc/mrjg/index.shtml"
+PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油", "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
 
-PRICE_WANT = ["鲜猪肉", "牛肉", "羊肉", "鸡肉", "鸡蛋", "豆油",
-              "大白菜", "黄瓜", "土豆", "西红柿", "青椒", "芸豆", "韭菜"]
-
-
-# ========== 天气（你的原样，没动） ==========
+# ========== 天气（真实接口） ==========
 def fetch():
     headers = {"X-QW-Api-Key": QW_KEY}
-    now = requests.get(f"{API_HOST}/v7/weather/now",
-                       params={"location": LOCATION}, headers=headers, timeout=10).json()
-    hourly = requests.get(f"{API_HOST}/v7/weather/24h",
-                          params={"location": LOCATION}, headers=headers, timeout=10).json()
-    daily = requests.get(f"{API_HOST}/v7/weather/3d",
-                         params={"location": LOCATION}, headers=headers, timeout=10).json()
+    now = requests.get(f"{API_HOST}/v7/weather/now", params={"location": LOCATION}, headers=headers, timeout=10).json()
+    hourly = requests.get(f"{API_HOST}/v7/weather/24h", params={"location": LOCATION}, headers=headers, timeout=10).json()
+    daily = requests.get(f"{API_HOST}/v7/weather/3d", params={"location": LOCATION}, headers=headers, timeout=10).json()
     return {"now": now, "hourly": hourly, "daily": daily}
-
 
 def build_text(data):
     now = data["now"].get("now", {})
     lines = ["监控推送 · 鞍山天气"]
-    lines.append(
-        f"当前：{now.get('text', '?')} {now.get('temp', '?')}℃ "
-        f"（体感 {now.get('feelsLike', '?')}℃）"
-    )
-    lines.append(
-        f"湿度 {now.get('humidity', '?')}%  "
-        f"{now.get('windDir', '')}{now.get('windScale', '?')}级"
-    )
+    lines.append(f"当前：{now.get('text', '?')} {now.get('temp', '?')}℃ （体感 {now.get('feelsLike', '?')}℃）")
+    lines.append(f"湿度 {now.get('humidity', '?')}%  {now.get('windDir', '')}{now.get('windScale', '?')}级")
     lines.append("")
     lines.append("—— 未来24小时 ——")
     for i, h in enumerate(data["hourly"].get("hourly", [])):
-        if i % 3 != 0:
-            continue
+        if i % 3 != 0: continue
         t = h.get("fxTime", "")[11:16]
         lines.append(f"{t} {h.get('text', '?')} {h.get('temp', '?')}℃ 降水{h.get('pop', '0')}%")
     lines.append("")
@@ -112,12 +48,10 @@ def build_text(data):
         lines.append(f"{d.get('fxDate', '?')} {d.get('textDay', '?')} {d.get('tempMin', '?')}~{d.get('tempMax', '?')}℃")
     return "\n".join(lines)
 
-
-# ========== 辽宁物价（你的原样，没动） ==========
+# ========== 辽宁物价 ==========
 def fetch_ln_prices():
     try:
-        r = requests.get(LN_PRICE_URL, timeout=10,
-                         headers={"User-Agent": "Mozilla/5.0"})
+        r = requests.get(LN_PRICE_URL, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         r.encoding = "utf-8"
         text = re.sub(r"<.*?>", " ", r.text)
         text = re.sub(r"\s+", " ", text)
@@ -127,96 +61,86 @@ def fetch_ln_prices():
 
     mtime = ""
     m = re.search(r"监测时间[:：]\s*(\d{4}-\d{2}-\d{2})", text)
-    if m:
-        mtime = m.group(1)
+    if m: mtime = m.group(1)
 
     rows = []
     for name in PRICE_WANT:
         pat = re.escape(name) + r".*?([\d]+\.[\d]+)"
         m2 = re.search(pat, text)
-        if m2:
-            rows.append(f"{name} {m2.group(1)}元")
-
+        if m2: rows.append(f"{name} {m2.group(1)}元")
     return rows, mtime
-
 
 def price_block():
     rows, mtime = fetch_ln_prices()
     lines = ["—— 辽宁物价（全省均价） ——"]
-    if mtime:
-        lines.append(f"监测时间：{mtime}")
+    if mtime: lines.append(f"监测时间：{mtime}")
     if not rows:
         lines.append("（暂未获取到，稍后重试）")
         return "\n".join(lines)
-    for x in rows:
-        lines.append(f"· {x}")
+    for x in rows: lines.append(f"· {x}")
     lines.append("数据：辽宁省发改委")
     return "\n".join(lines)
 
-
-# ========== 单板块抓取（hard过滤+权重排序+兜底10条） ==========
-def fetch_block(cfg):
-    picked = []
+# ========== 新闻 ==========
+def fetch_news():
+    results = []
     seen = set()
-    for src in cfg["srcs"]:
+    for src in RSS_SOURCES:
         try:
             d = feedparser.parse(src["url"])
             count = 0
             for e in d.entries:
                 title = (e.get("title") or "").strip()
                 link = (e.get("link") or "").strip()
-                if not title or not link or title in seen:
-                    continue
+                if not title or not link or title in seen: continue
                 kw = src.get("kw", [])
-                if kw and not any(k in title for k in kw):
-                    continue
+                if kw and not any(k in title for k in kw): continue
                 seen.add(title)
-                # 权重打分
-                score = 0
-                for k in cfg["hard"]:
-                    if k in title:
-                        score += HOT_WEIGHT.get(k, len(k))
-                picked.append((score, title, link))
+                results.append((src["name"], title, link))
                 count += 1
-                if count >= src["max"]:
-                    break
+                if count >= src["max"]: break
         except Exception as ex:
-            print(f"[{cfg['name']}] RSS失败: {ex}")
+            print(f"[{src['name']}] RSS失败: {ex}")
+    return results
 
-    # 按权重排序，高分在前
-    picked.sort(key=lambda x: -x[0])
+def news_block():
+    items = fetch_news()
+    if not items: return "—— 军事/油气资讯 ——\n（今日无匹配条目）"
+    
+    seen8 = set()
+    dedup = []
+    for s, t, u in items:
+        k8 = t[:8]
+        if k8 in seen8: continue
+        seen8.add(k8)
+        dedup.append((s, t, u))
+        
+    key = "\n".join(f"{s}|{t}" for s, t, _ in dedup)
+    last = ""
+    if os.path.exists(NEWS_LAST_FILE): last = open(NEWS_LAST_FILE, encoding="utf-8").read().strip()
+    if key == last: return "—— 军事/油气资讯 ——\n（无新条目）"
+    
+    lines = ["—— 军事/油气资讯 ——"]
+    cur = None
+    for s, t, u in dedup:
+        if s != cur:
+            cur = s
+            lines.append(f"\n【{s}】")
+        lines.append(f"· {t}")
+        lines.append(f"  {u}")
+    open(NEWS_LAST_FILE, "w", encoding="utf-8").write(key)
+    return "\n".join(lines)
 
-    # 提取标题和链接，去重后取前cap条
-    titles_seen = set()
-    result = []
-    for score, title, link in picked:
-        if title in titles_seen:
-            continue
-        titles_seen.add(title)
-        result.append((title, link))
-        if len(result) >= cfg["cap"]:
-            break
-
-    # 兜底补满
-    while len(result) < cfg["cap"]:
-        result.append((f"（暂无更多{cfg['name']}资讯）", ""))
-
-    return result[:cfg["cap"]]
-
-
-# ========== 飞书推送（加重试+频控） ==========
+# ========== 飞书推送（加重试频控） ==========
 def push_feishu(text):
-    if not WEBHOOK:
-        raise RuntimeError("FEISHU_WEBHOOK 没配置")
+    if not WEBHOOK: raise RuntimeError("FEISHU_WEBHOOK 没配置")
     for attempt in range(3):
         try:
-            resp = requests.post(WEBHOOK,
-                                 json={"msg_type": "text", "content": {"text": text}},
-                                 timeout=8)
+            resp = requests.post(WEBHOOK, json={"msg_type": "text", "content": {"text": text}}, timeout=8)
             body = resp.json()
             code = body.get("code", 0)
             if code == 0:
-                print("✅ 飞书发送成功")
+                print("✅ 飞书真实发送成功")
                 return
             print(f"飞书返回 code={code} msg={body.get('msg')}")
             if code in (11232, 9499):
@@ -228,60 +152,31 @@ def push_feishu(text):
             time.sleep(2)
     raise RuntimeError("飞书推送失败（重试3次）")
 
-
 # ========== Main：分3条推送 ==========
 def main():
     # 第1条：天气
     try:
-        data = fetch()
-        push_feishu(build_text(data))
+        push_feishu(build_text(fetch()))
         print("✅ 第1条（天气）完成")
-    except Exception as e:
+    except Exception as e: 
         print(f"❌ 第1条失败: {e}")
-
     time.sleep(2)
 
-    # 第2条：军事 + 国际政治 + 亚洲台海
+    # 第2条：新闻
     try:
-        lines = ["—— 新闻资讯（一） ——"]
-        for name in ["军事", "国际政治", "亚洲台海"]:
-            cfg = next(b for b in BLOCKS if b["name"] == name)
-            items = fetch_block(cfg)
-            lines.append(f"\n【{name}】（{len([x for x in items if x[0]])}条）")
-            for t, u in items:
-                if u:
-                    lines.append(f"· {t}")
-                    lines.append(f"  {u}")
-                else:
-                    lines.append(f"· {t}")
-        push_feishu("\n".join(lines))
-        print("✅ 第2条（军事/国际/台海）完成")
-    except Exception as e:
+        push_feishu(news_block())
+        print("✅ 第2条（新闻）完成")
+    except Exception as e: 
         print(f"❌ 第2条失败: {e}")
-
     time.sleep(2)
 
-    # 第3条：油气 + 辽宁民生 + 物价
+    # 第3条：物价
     try:
-        lines = ["—— 新闻资讯（二） ——"]
-        for name in ["油气", "辽宁民生"]:
-            cfg = next(b for b in BLOCKS if b["name"] == name)
-            items = fetch_block(cfg)
-            lines.append(f"\n【{name}】（{len([x for x in items if x[0]])}条）")
-            for t, u in items:
-                if u:
-                    lines.append(f"· {t}")
-                    lines.append(f"  {u}")
-                else:
-                    lines.append(f"· {t}")
-        lines.append("\n" + price_block())
-        push_feishu("\n".join(lines))
-        print("✅ 第3条（油气/民生/物价）完成")
-    except Exception as e:
+        push_feishu(price_block())
+        print("✅ 第3条（物价）完成")
+    except Exception as e: 
         print(f"❌ 第3条失败: {e}")
-
     print("✅ 全部完成")
-
 
 if __name__ == "__main__":
     main()
