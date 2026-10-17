@@ -17,18 +17,54 @@ NEWS_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last_
 REQUEST_TIMEOUT = 10
 
 # ========== RSS 源与分类定义 ==========
-# 我把你要求的来源添加进来了：人民网、澎湃（第三方 RSS）以及本地聚合源（通过 RSSHub）
+# 重点：本地（鞍山/辽宁）优先展示；同时保留国际、军事、油气等重要信息源
 CATEGORY_DEFS = [
+    {
+        "key": "anshan_local",
+        "name": "鞍山/辽宁民生",
+        "feeds": [
+            "http://www.chinanews.com.cn/rss/local.xml",
+            "http://www.chinanews.com.cn/rss/finance.xml",
+            "http://www.chinanews.com.cn/rss/world.xml",
+            "http://www.people.com.cn/rss/ywkx.xml",
+            "http://www.people.com.cn/rss/society.xml",
+            "https://rsshub.app/netease/news/liaoning",
+            "https://rsshub.app/netease/news/anshan",
+            "https://rsshub.app/sina/rollnews/liaoning",
+            "https://rsshub.app/sina/rollnews/anshan",
+            "https://rsshub.app/thepaper/featured",
+        ],
+        "keywords": [
+            "鞍山", "辽宁", "沈阳", "大连", "本溪", "营口", "辽阳", "海城", "台安",
+            "岫岩", "鞍钢", "钢铁", "钢材", "制造业", "投资", "房价", "物价", "民生",
+            "就业", "补贴", "项目", "消费", "产业"
+        ],
+        "min_items": 25,
+    },
+    {
+        "key": "intl_politics",
+        "name": "国际政治",
+        "feeds": [
+            "http://www.chinanews.com.cn/rss/world.xml",
+            "http://rss.cnn.com/rss/edition_world.rss",
+            "http://feeds.bbci.co.uk/news/world/rss.xml",
+            "http://www.people.com.cn/rss/world.xml",
+            "http://www.people.com.cn/rss/politics.xml",
+            "https://rsshub.app/thepaper/featured",
+            "https://rsshub.app/xinhua/news",
+        ],
+        "keywords": ["联合国", "峰会", "制裁", "外交", "协议", "冲突", "战略", "总统", "政府", "战争"],
+        "min_items": 20,
+    },
     {
         "key": "military",
         "name": "军事",
         "feeds": [
             "http://www.chinanews.com.cn/rss/mil.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
-            # 人民网军事频道
             "http://www.people.com.cn/rss/military.xml",
-            # 澎湃（第三方聚合）
             "https://rsshub.app/thepaper/featured",
+            "https://rsshub.app/xinhua/news",
         ],
         "keywords": ["导弹", "无人机", "拦截", "战机", "航母", "军演", "海军", "空军", "核"],
         "min_items": 20,
@@ -39,47 +75,11 @@ CATEGORY_DEFS = [
         "feeds": [
             "http://www.chinanews.com.cn/rss/finance.xml",
             "http://www.chinanews.com.cn/rss/world.xml",
-            # 人民网财经/要闻（可提供更多宏观/能源类报道）
             "http://www.people.com.cn/rss/ywkx.xml",
-            # 澎湃聚合（能源/财经相关也会出现在这里）
             "https://rsshub.app/thepaper/featured",
+            "https://rsshub.app/xinhua/news",
         ],
         "keywords": ["石油", "油价", "原油", "布伦特", "成品油", "天然气", "油轮", "能源", "OPEC"],
-        "min_items": 20,
-    },
-    {
-        "key": "intl_politics",
-        "name": "国际政治",
-        "feeds": [
-            "http://www.chinanews.com.cn/rss/world.xml",
-            "http://rss.cnn.com/rss/edition_world.rss",
-            "http://feeds.bbci.co.uk/news/world/rss.xml",
-            # 人民网国际/时政
-            "http://www.people.com.cn/rss/world.xml",
-            "http://www.people.com.cn/rss/politics.xml",
-            # 澎湃（第三方聚合）
-            "https://rsshub.app/thepaper/featured",
-        ],
-        "keywords": ["联合国", "峰会", "制裁", "外交", "协议", "冲突", "战略", "总统", "政府", "战争"],
-        "min_items": 20,
-    },
-    {
-        "key": "liaoning_life",
-        "name": "辽宁民生",
-        "feeds": [
-            "http://www.chinanews.com.cn/rss/local.xml",
-            "http://www.chinanews.com.cn/rss/finance.xml",
-            "http://www.chinanews.com.cn/rss/world.xml",
-            # 人民网要闻/社会（覆盖更多全国性与地方性报道）
-            "http://www.people.com.cn/rss/ywkx.xml",
-            "http://www.people.com.cn/rss/society.xml",
-            # 澎湃（第三方聚合）
-            "https://rsshub.app/thepaper/featured",
-            # 本地聚合（通过 RSSHub）：网易、新浪的辽宁频道（第三方）
-            "https://rsshub.app/netease/news/liaoning",
-            "https://rsshub.app/sina/rollnews/liaoning",
-        ],
-        "keywords": ["辽宁", "鞍山", "沈阳", "抚顺", "本溪", "营口", "丹东", "锦州", "大连", "民生", "房价", "物价"],
         "min_items": 20,
     },
 ]
@@ -109,7 +109,6 @@ def _safe_json_from_resp(resp):
 
 
 def _normalize_section(body, section_name):
-    # 兼容旧实现的接口结构（保留以备将来可��使用 API_HOST）
     if not isinstance(body, dict):
         return {}
     if section_name in body and isinstance(body[section_name], (dict, list)):
@@ -202,11 +201,9 @@ def fetch_ln_economy():
     for label, pat in patterns:
         m = re.search(pat, text)
         if m:
-            # 取最后一个捕获组作为值（数值+单位）
             val = m.group(len(m.groups()))
             indicators.append((label, val.strip()))
 
-    # 如果未找到，也尝试抓取类似“同比”数据（例如：GDP同比+X%）
     if not indicators:
         for key in ["GDP", "同比", "增长"]:
             m = re.search(r"(GDP|地区生产总值).{0,30}([+-]?\d+\.\d+%|\d+%|增长\d+\.\d+%)", text)
@@ -218,7 +215,6 @@ def fetch_ln_economy():
 
 
 def econ_block():
-    # 合并物价与经济指标为一条推送
     price_rows, mtime = fetch_ln_prices()
     econ_items = fetch_ln_economy()
 
@@ -240,7 +236,7 @@ def econ_block():
             lines.append(f"· {k}：{v}")
         lines.append("注：指标为页面抓取结果，可能需手动核验来源与口径。")
     else:
-        lines.append("（未抓取到显著的经济指���；可通过设置环境变量 LN_ECON_URL 指向统计/政府发布页来改进）")
+        lines.append("（未抓取到显著的经济指标；可通过设置环境变量 LN_ECON_URL 指向统计/政府发布页来改进）")
 
     return format_feishu_post("辽宁经济与物价", "\n".join(lines))
 
@@ -300,42 +296,59 @@ def fetch_news_category(defn):
     return results
 
 
-def build_news_blocks():
+def _build_news_payload(category_keys=None, title="监控推送 · 重点资讯"):
     blocks = []
     save_items = []
-    for defn in CATEGORY_DEFS:
+    selected = CATEGORY_DEFS if category_keys is None else [d for d in CATEGORY_DEFS if d["key"] in set(category_keys)]
+    for defn in selected:
         name = defn["name"]
         items = fetch_news_category(defn)
         top_n = items[: max(defn.get("min_items", 20), 20)]
         section_lines = [f"【{name}】"]
         if not top_n:
-            section_lines.append("（暂无可用条目）")
+            section_lines.append("（��无可用条目）")
         else:
             for it in top_n:
                 section_lines.append(f"· {it['title']}")
                 section_lines.append(f"  {it['link']}")
         blocks.append("\n".join(section_lines))
         save_items.append(f"{name}:{ ' | '.join(it['title'] for it in top_n[:5]) }")
-    return format_feishu_post("监控推送 · 重点资讯", "\n\n".join(blocks)), "\n".join(save_items)
+    return format_feishu_post(title, "\n\n".join(blocks)), "\n".join(save_items)
 
 
-def news_block():
-    payload, key = build_news_blocks()
+def build_news_blocks():
+    return _build_news_payload()
+
+
+def news_block_for(category_keys, title, last_file=NEWS_LAST_FILE):
+    payload, key = _build_news_payload(category_keys=category_keys, title=title)
     last = ""
-    if os.path.exists(NEWS_LAST_FILE):
+    if os.path.exists(last_file):
         try:
-            with open(NEWS_LAST_FILE, encoding="utf-8") as f:
+            with open(last_file, encoding="utf-8") as f:
                 last = f.read().strip()
         except Exception:
             last = ""
     if key == last:
-        return format_feishu_post("监控推送 · 重点资讯", "（无新条目）")
+        return format_feishu_post(title, "（无新条目）")
     try:
-        with open(NEWS_LAST_FILE, "w", encoding="utf-8") as f:
+        with open(last_file, "w", encoding="utf-8") as f:
             f.write(key)
     except Exception:
         pass
     return payload
+
+
+def news_block():
+    return news_block_for([d["key"] for d in CATEGORY_DEFS], "监控推送 · 重点资讯")
+
+
+def local_news_block():
+    return news_block_for(["anshan_local"], "监控推送 · 鞍山/辽宁")
+
+
+def global_news_block():
+    return news_block_for([d["key"] for d in CATEGORY_DEFS if d["key"] != "anshan_local"], "监控推送 · 国际/军事/油气")
 
 
 # ========== 飞书推送（加重试+频控） ==========
@@ -402,7 +415,7 @@ def push_feishu(text):
     raise RuntimeError("飞书推送失败（重试3次）")
 
 
-# ========== Main：分2条推送（新闻 + 辽宁经济/物价） ==========
+# ========== Main：分3条推送（鞍山/辽宁优先、国际/军事/油气其次、经济/物价最后） ==========
 def main():
     def safe_send(label, sender):
         try:
@@ -419,12 +432,13 @@ def main():
                 except Exception:
                     pass
 
-    # 第1条：新闻（按分类）
-    safe_send("第1条（新闻）", news_block)
+    safe_send("第1条（鞍山/辽宁）", local_news_block)
     time.sleep(2)
 
-    # 第2条：辽宁物价与经济
-    safe_send("第2条（辽宁物价与经济）", econ_block)
+    safe_send("第2条（国际/军事/油气）", global_news_block)
+    time.sleep(2)
+
+    safe_send("第3条（辽宁物价与经济）", econ_block)
 
     print("✅ 全部完成")
 
